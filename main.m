@@ -36,21 +36,32 @@ R = 0.8;                 % Photodetector responsiveness (A/W)
 %% Ideal FSO channel
 % rxOpticalSignal = txSignal; % power transmitted is received by detector directly
 
-%% Geometrical Propagation Gain(Beam Intensity Spreading)
-L = 10e3;              % HAPS-ground distance (m) 
-theta = 1e-3;          % Beam divergence parameter (rad)
-w0 = 0.05;             % Initial beam radius (m)
+%% Geometrical Propagation Gain(Beam Intensity Spreading): Gaussian Model
+% Gaussian beam parameters
+lambda = 1550e-9;       % Optical wavelength (m)
 
-RxDiameter = 0.2;      % Receiver aperture diameter (m)
+theta = 0.01e-3;        % Beam divergence half-angle (rad)
+
+% Beam waist from divergence
+w0 = lambda / (pi * theta);
+
+% Receiver parameters
+RxDiameter = 0.2;       % Receiver aperture diameter (m)
 RxRadius = RxDiameter / 2;
 
+% HAPS-ground distance
+L = 20e3;               % 20 km
+
+% Rayleigh range
+zR = pi * w0^2 / lambda;
+
 % Beam radius at receiver
-wRx = w0 + L * theta;
+wRx = w0 * sqrt(1 + (L/zR)^2);
 
-% Geometrical channel gain
-H_geo = (RxRadius / wRx)^2; %(receiver's aperture area/Sender's propagation area)
+% Exact Gaussian power captured by circular receiver aperture
+H_geo = 1 - exp(-2 * RxRadius^2 / wRx^2);
 
-% Received optical signal
+%% Received optical signal
 rxOpticalSignal = H_geo * txSignal;
 
 %% Photodetector
@@ -82,7 +93,7 @@ fprintf('BER = %.4f\n', BER);
 %% Observing affect of Increasing HAPS Distance from Receiver and seeing the
 % Graphical Nature of Received Power affected due to Geometrical Beam
 % Spreading
-distances = [1 2 5 10 15 20] * 1e3;
+distances = (1:1:30) * 1e3;
 
 receivedPower = zeros(size(distances));
 
@@ -90,17 +101,17 @@ for k = 1:length(distances)
 
     L = distances(k);
 
-    wRx = w0 + L * theta;
+    wRx = w0 * sqrt(1 + (L/zR)^2);
 
-    H_geo = (RxRadius / wRx)^2;
+    H_geo = 1 - exp(-2 * RxRadius^2 / wRx^2);
 
     receivedPower(k) = Pt * H_geo;
 
 end
 
 figure;
-plot(distances/1e3, receivedPower, 'o-', 'LineWidth', 1.5);
+semilogy(distances/1e3, receivedPower, 'o-', 'LineWidth', 1.5);
 xlabel('HAPS-Ground Distance (km)');
 ylabel('Received Optical Power (W)');
-title('Geometrical Loss: Received Power vs Distance');
+title('Gaussian Beam: Received Power vs Distance');
 grid on;
