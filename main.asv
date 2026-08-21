@@ -44,14 +44,14 @@ rxCurrent = R * rxOpticalSignal; % photodetector converting light to electrical 
 %% 10th bit,30th bit,50th bit for samples
 sampleIndices = samplesPerBit/2 : samplesPerBit : length(rxCurrent);
 
-rxSamples = rxCurrent(sampleIndices); % access and put the samples in exSamples
+rxSamples = rxCurrent(sampleIndices); 
 
 %% Decision
 detectedBits = rxSamples > threshold; % decision threshold detection of incoming signal/bit
 
 %% BER
-numErrors = sum(bits ~= detectedBits); % ~= not equal operator , bit by bit check of both sent and detected bits
-BER = numErrors / Nbits; % Bit Error Rate
+numErrors = sum(bits ~= detectedBits); 
+BER = numErrors / Nbits; 
 
 fprintf('Number of bit errors = %d\n', numErrors);
 fprintf('BER = %.4f\n', BER);
