@@ -307,3 +307,104 @@ fprintf('Number of bit errors  = %d\n', ...
     sum(bits ~= detectedBitsTurb));
 
 fprintf('BER                   = %.6f\n', BERTurb);
+
+%% =========================================================
+% BER VS ATMOSPHERIC TURBULENCE STRENGTH
+% ==========================================================
+
+% Use more bits for statistical BER estimation
+NbitsSweep = 10000;
+
+% Turbulence strength cases
+Cn2_values = [1e-17 3e-17 1e-16 3e-16 1e-15];
+
+BER_values = zeros(size(Cn2_values));
+Rytov_values = zeros(size(Cn2_values));
+
+
+for k = 1:length(Cn2_values)
+
+    %% Current turbulence condition
+
+    Cn2_current = Cn2_values(k);
+
+
+    %% Generate a new OOK sequence for this experiment
+
+    [bitsSweep, txSignalSweep, ~] = ...
+        generateOOK( ...
+        NbitsSweep, ...
+        Pt, ...
+        Rb, ...
+        samplesPerBit);
+
+
+    %% Generate turbulence gain: one value per bit
+
+    [H_turb_bits, ~, ~, sigmaR2_current] = ...
+        gammaGammaTurbulence( ...
+        lambda, ...
+        L, ...
+        Cn2_current, ...
+        NbitsSweep);
+
+
+    %% Expand one turbulence value across each bit
+
+    H_turb_signal = repelem( ...
+        H_turb_bits, ...
+        samplesPerBit);
+
+
+    %% Apply turbulence to received signal
+
+    rxOpticalSignalSweep = ...
+        H_total .* H_turb_signal .* txSignalSweep;
+
+
+    %% Receiver detection
+
+    [detectedBitsSweep, BER_current, ~, ~, ~] = ...
+        receiverModel( ...
+        rxOpticalSignalSweep, ...
+        bitsSweep, ...
+        Pt, ...
+        H_total, ...
+        R, ...
+        samplesPerBit);
+
+
+    %% Store results
+
+    BER_values(k) = BER_current;
+
+    Rytov_values(k) = sigmaR2_current;
+
+
+    %% Display current result
+
+    fprintf('\nCn^2 = %.2e\n', Cn2_current);
+
+    fprintf('Rytov variance = %.4f\n', sigmaR2_current);
+
+    fprintf('BER = %.6f\n', BER_current);
+
+end
+
+%% Plot BER versus turbulence strength
+
+figure;
+
+loglog( ...
+    Cn2_values, ...
+    BER_values, ...
+    'o-', ...
+    'LineWidth', 1.5);
+
+xlabel('Refractive Index Structure Parameter C_n^2 (m^{-2/3})');
+
+ylabel('BER');
+
+title('FSO BER versus Atmospheric Turbulence Strength');
+
+grid on;
