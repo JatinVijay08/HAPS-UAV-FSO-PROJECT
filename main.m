@@ -10,7 +10,7 @@ close all;
 
 %% Parameters
 
-Nbits = 20;              % Number of transmitted bits
+Nbits = 1000;              % Number of transmitted bits
 Rb = 1e6;                % Bit rate (bits/s)
 Pt = 1;                  % Optical transmit power (W)
 
@@ -273,3 +273,37 @@ legend( ...
     'With Turbulence');
 
 grid on;
+
+%% =========================================================
+% RECEIVER PERFORMANCE UNDER ATMOSPHERIC TURBULENCE
+% ==========================================================
+
+[detectedBitsTurb, BERTurb, rxCurrentTurb, ...
+    rxSamplesTurb, thresholdTurb] = ...
+    receiverModel( ...
+    rxOpticalSignalTurb, ...
+    bits, ...
+    Pt, ...
+    H_total, ...
+    R, ...
+    samplesPerBit);
+
+
+%% Display turbulent-channel BER
+
+fprintf('\n===== FSO WITH ATMOSPHERIC TURBULENCE =====\n');
+
+fprintf('Cn^2                 = %.2e m^(-2/3)\n', Cn2);
+
+fprintf('Rytov variance       = %.6f\n', sigmaR2);
+
+fprintf('Alpha                 = %.4f\n', alphaGG);
+
+fprintf('Beta                  = %.4f\n', betaGG);
+
+fprintf('Decision Threshold    = %.6f A\n', thresholdTurb);
+
+fprintf('Number of bit errors  = %d\n', ...
+    sum(bits ~= detectedBitsTurb));
+
+fprintf('BER                   = %.6f\n', BERTurb);
