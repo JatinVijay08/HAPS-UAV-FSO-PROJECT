@@ -13,6 +13,14 @@ function [detectedBits, BER, rxCurrent, rxSamples, threshold] = ...
 
 rxCurrent = R * rxOpticalSignal;
 
+%% Receiver noise
+
+sigmaNoise = 0.005;     % Noise standard deviation (A)
+
+noise = sigmaNoise * randn(size(rxCurrent)); % randn -> generates zero mean Gaussian Values
+
+rxCurrent = rxCurrent + noise;
+
 %% Receiver saturation model
 
 I_sat = 0.25;    % Photodetector saturation current (A)
