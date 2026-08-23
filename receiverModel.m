@@ -13,6 +13,15 @@ function [detectedBits, BER, rxCurrent, rxSamples, threshold] = ...
 
 rxCurrent = R * rxOpticalSignal;
 
+%% Receiver saturation model
+
+I_sat = 0.25;    % Photodetector saturation current (A)
+% Maximum current is 0.25 that can be produced by the photodetector
+% A strong Jammer could cause the nominal current to go beyond or be pushed
+% towards saturation current when corrupting /jamming the signal
+
+rxCurrent = min(rxCurrent, I_sat);
+
 
 %% =========================================================
 % Sample once per bit
