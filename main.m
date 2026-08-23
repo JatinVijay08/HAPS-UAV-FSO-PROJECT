@@ -24,6 +24,9 @@ theta = 0.01e-3;         % Beam divergence half-angle (rad)
 RxDiameter = 0.2;        % Receiver aperture diameter (m)
 R = 0.8;                 % Photodetector responsivity (A/W)
 
+% Pointing error
+sigmaPoint = 0.02;       % Pointing displacement standard deviation (m)
+
 % HAPS-ground distance
 L = 20e3;                % 20 km
 
@@ -32,7 +35,7 @@ alpha = 0.1;             % dB/km
 
 
 %% =========================================================
-% 1. TRANSMITTER
+% 0. TRANSMITTER
 % ==========================================================
 
 [bits, txSignal, t] = generateOOK( ...
@@ -54,11 +57,36 @@ ylim([-0.1 1.1]);
 
 
 %% =========================================================
-% 2. GEOMETRICAL PROPAGATION
+% 1. GEOMETRICAL PROPAGATION
 % ==========================================================
 
 [H_geo, wRx, w0, zR] = geometryModel( ...
     lambda, theta, RxDiameter, L);
+
+%% =========================================================
+% 2. POINTING ERROR
+% ==========================================================
+
+H_point_bits = pointingErrorModel( ...
+    wRx, ...
+    sigmaPoint, ...
+    Nbits);
+
+H_point = repelem( ...
+    H_point_bits, ...
+    samplesPerBit);
+
+fprintf('\n===== POINTING ERROR =====\n');
+
+fprintf('Pointing sigma       = %.4f m\n', sigmaPoint);
+
+fprintf('Mean H_point         = %.4f\n', mean(H_point));
+
+fprintf('Std H_point          = %.4f\n', std(H_point));
+
+fprintf('Minimum H_point      = %.4f\n', min(H_point));
+
+fprintf('Maximum H_point      = %.4f\n', max(H_point));
 
 
 %% =========================================================
@@ -74,7 +102,8 @@ H_atm = atmosphericAttenuation(alpha, L);
 
 H_total = H_geo * H_atm;
 
-rxOpticalSignal = H_total * txSignal;
+% Apply pointing error
+rxOpticalSignal = H_total .* H_point .* txSignal;
 
 
 %% =========================================================
@@ -238,6 +267,7 @@ grid on;
     Nbits);
 
 
+
 % Keep the same turbulence gain throughout each bit
 
 H_turb_signal = repelem( ...
@@ -348,6 +378,17 @@ for k = 1:length(Cn2_values)
         Cn2_current, ...
         NbitsSweep);
 
+    %% Generate pointing error for each bit
+
+    H_point_bits = pointingErrorModel( ...
+        wRx, ...
+        sigmaPoint, ...
+        NbitsSweep);
+
+    H_point_signal = repelem( ...
+        H_point_bits, ...
+        samplesPerBit);
+
 
     %% Expand one turbulence value across each bit
 
@@ -359,7 +400,10 @@ for k = 1:length(Cn2_values)
     %% Apply turbulence to received signal
 
     rxOpticalSignalSweep = ...
-        H_total .* H_turb_signal .* txSignalSweep;
+        H_total .* ...
+        H_turb_signal .* ...
+        H_point_signal .* ...
+        txSignalSweep;
 
 
     %% Receiver detection
