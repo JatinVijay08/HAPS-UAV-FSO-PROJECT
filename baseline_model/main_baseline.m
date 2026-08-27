@@ -150,64 +150,6 @@ fprintf('BER                   = %.4f\n', BER);
 
 
 %% =========================================================
-% 7. DISTANCE SWEEP
-% ==========================================================
-
-distances = (1:1:30) * 1e3;
-
-powerGeo = zeros(size(distances));
-powerTotal = zeros(size(distances));
-
-for k = 1:length(distances)
-
-    distance = distances(k);
-
-    % Geometrical gain
-    H_geo_k = geometryModel( ...
-        lambda, theta, RxDiameter, distance);
-
-    % Atmospheric gain
-    H_atm_k = atmosphericAttenuation( ...
-        alpha, distance);
-
-    % Received powers
-    powerGeo(k) = Pt * H_geo_k;
-
-    powerTotal(k) = Pt * H_geo_k * H_atm_k;
-
-end
-
-
-%% Plot distance sweep
-
-figure;
-
-semilogy( ...
-    distances/1e3, ...
-    powerGeo, ...
-    'o-', ...
-    'LineWidth', 1.5);
-
-hold on;
-
-semilogy( ...
-    distances/1e3, ...
-    powerTotal, ...
-    's-', ...
-    'LineWidth', 1.5);
-
-xlabel('HAPS-Ground Distance (km)');
-ylabel('Received Optical Power (W)');
-
-title('Effect of Atmospheric Attenuation');
-
-legend( ...
-    'Geometrical Only', ...
-    'Geometry + Atmospheric Attenuation');
-
-grid on;
-
-%% =========================================================
 % TURBULENCE EXPERIMENT
 % ==========================================================
 
