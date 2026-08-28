@@ -15,6 +15,22 @@ k = 2*pi/lambda;
 sigmaR2 = 1.23 * Cn2 * k^(7/6) * L^(11/6);
 
 
+%% No turbulence condition
+
+if Cn2 == 0
+
+    H_turb = ones(1, N);
+
+    alphaGG = Inf;
+
+    betaGG = Inf;
+
+    return;
+
+end
+
+
+
 %% Gamma-Gamma parameters
 
 alphaGG = 1 / ...
