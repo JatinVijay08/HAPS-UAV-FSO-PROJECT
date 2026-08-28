@@ -7,7 +7,7 @@ rng(1);
 %% =========================================================
 % HAPS FSO COMMUNICATION SYSTEM
 %
-% BASELINE + CONSTANT JAMMER
+% CLEAN BASELINE MODEL
 % HAPS --> Ground Receiver
 %
 % Includes:
@@ -26,14 +26,10 @@ rng(1);
 % ADD MAIN MODELS TO MATLAB PATH
 %% =========================================================
 
-
 currentFolder = fileparts(mfilename('fullpath'));
 
-addpath(fullfile( ...
-    currentFolder, ...
-    '..', ...
-    'baseline_model', ...
-    'MainModels'));
+addpath(fullfile(currentFolder, 'MainModels'));
+
 
 %% =========================================================
 % 1. SYSTEM PARAMETERS
@@ -180,7 +176,6 @@ rxOpticalSignal = ...
     H_point_signal .* ...
     H_turb_signal.*...
     txSignal;
-
 %% =========================================================
 % CONSTANT OPTICAL JAMMER
 %% =========================================================
@@ -198,54 +193,42 @@ P_jammer = jammerModel(Pj,Nsamples);
 rxOpticalSignalJammed = rxOpticalSignal + P_jammer;
 
 %% =========================================================
-% RECEIVER NOISE
-%
-% Generate ONCE so clean and jammed cases experience
-% exactly the same noise realization
-%% =========================================================
-
-sigmaNoise = 0.005;
-
-Nsamples = length(rxOpticalSignal);
-
-receiverNoise = sigmaNoise * randn(1, Nsamples);
-
-%% =========================================================
 % 8. RECEIVER - WITHOUT JAMMER
 %% =========================================================
 
-[detectedBitsClean, ...
-    BERClean, ...
-    rxCurrentClean, ...
-    rxSamplesClean, ...
-    thresholdClean] = receiverModel( ...
+[detectedBits, BER, ...
+ rxCurrent, ...
+ rxSamples, ...
+ threshold] = receiverModel( ...
     rxOpticalSignal, ...
     bits, ...
     Pt, ...
     H_total, ...
     R, ...
-    samplesPerBit, ...
-    receiverNoise);
-
-
-
+    samplesPerBit);
 %% =========================================================
 % 8.1 RECEIVER - WITH CONSTANT JAMMER
 %% =========================================================
 
+[detectedBitsJammed, BERJammed, ...
 
-[detectedBitsJammed, ...
-    BERJammed, ...
-    rxCurrentJammed, ...
-    rxSamplesJammed, ...
-    thresholdJammed] = receiverModel( ...
-    rxOpticalSignalJammed, ...
-    bits, ...
-    Pt, ...
-    H_total, ...
-    R, ...
-    samplesPerBit, ...
-    receiverNoise);
+rxCurrentJammed, ...
+
+rxSamplesJammed, ...
+
+thresholdJammed] = receiverModel( ...
+
+rxOpticalSignalJammed, ...
+
+bits, ...
+
+Pt, ...
+
+H_total, ...
+
+R, ...
+
+samplesPerBit);
 
 
 %% =========================================================
@@ -254,7 +237,7 @@ receiverNoise = sigmaNoise * randn(1, Nsamples);
 
 fprintf('\n');
 fprintf('============================================\n');
-fprintf('         HAPS FSO BASELINE + CONSTANT JAMMER \n');
+fprintf('         HAPS FSO CLEAN BASELINE\n');
 fprintf('============================================\n');
 
 
@@ -317,42 +300,14 @@ fprintf('Nominal received power = %.6f W\n', ...
     Pt * H_total);
 
 fprintf('Decision threshold     = %.6f A\n', ...
-    thresholdClean);
+    threshold);
 
 fprintf('Bit errors             = %d\n', ...
-    sum(bits ~= detectedBitsClean));
+    sum(bits ~= detectedBits));
 
 fprintf('BER                    = %.6f\n', ...
-    BERClean);
+    BER);
 
-
-%% =========================================================
-% JAMMER RESULTS
-%% =========================================================
-
-fprintf('\n');
-
-fprintf('============================================\n');
-
-fprintf('         CONSTANT JAMMER RESULTS\n');
-
-fprintf('============================================\n');
-
-fprintf('\n----- JAMMER -----\n');
-
-fprintf('Jammer optical power = %.4f W\n', Pj);
-
-fprintf('\n----- WITHOUT JAMMER -----\n');
-
-fprintf('Bit errors = %d\n',sum(bits ~= detectedBitsClean));
-
-fprintf('BER        = %.6f\n', BERClean);
-
-fprintf('\n----- WITH CONSTANT JAMMER -----\n');
-
-fprintf('Bit errors = %d\n', sum(bits ~= detectedBitsJammed));
-
-fprintf('BER        = %.6f\n', BERJammed);
 
 %% =========================================================
 % 10. PLOTS
@@ -384,151 +339,3 @@ ylabel('Received Optical Power (W)');
 title('Received Optical Signal - Clean Baseline');
 
 grid on;
-
-%% =========================================================
-% 11. PLOT RECEIVER CURRENT COMPARISON
-%% =========================================================
-
-%% =========================================================
-% RECEIVER CURRENT COMPARISON
-%
-% Short time window for easy visualization
-%% =========================================================
-
-% Plot first 50 bits
-
-bitsToPlot = 50;
-
-Nplot = bitsToPlot * samplesPerBit;
-
-timePlot = t(1:Nplot) * 1e6;
-
-figure;
-
-plot(timePlot, ...
-    rxCurrentClean(1:Nplot), ...
-    'LineWidth', 1.2);
-
-hold on;
-
-plot(timePlot, ...
-    rxCurrentJammed(1:Nplot), ...
-    'LineWidth', 1.2);
-
-% Decision threshold
-
-yline(thresholdClean, ...
-    '--', ...
-    'Decision Threshold', ...
-    'LineWidth', 1.5);
-
-% Receiver saturation level
-
-yline(0.25, ...
-    '--', ...
-    'Saturation Current', ...
-    'LineWidth', 1.5);
-
-xlabel('Time (\mus)');
-
-ylabel('Photodetector Current (A)');
-
-title('Receiver Current: Clean vs Constant Jammer');
-
-legend( ...
-    'Without Jammer', ...
-    'With Constant Jammer', ...
-    'Decision Threshold', ...
-    'Saturation Current', ...
-    'Location', 'best');
-
-grid on;
-
-xlim([timePlot(1) timePlot(end)]);
-
-ylim([-0.03 0.27]);
-
-%% =========================================================
-% BIT DECISION SAMPLES
-%% =========================================================
-
-bitsToPlot = 50;
-
-figure;
-
-stem(1:bitsToPlot, ...
-    rxSamplesClean(1:bitsToPlot), ...
-    'filled', ...
-    'LineWidth', 1.2);
-
-hold on;
-
-stem(1:bitsToPlot, ...
-    rxSamplesJammed(1:bitsToPlot), ...
-    'filled', ...
-    'LineWidth', 1.2);
-
-yline(thresholdClean, ...
-    '--', ...
-    'Decision Threshold', ...
-    'LineWidth', 1.5);
-
-xlabel('Bit Index');
-
-ylabel('Sampled Photodetector Current (A)');
-
-title('Decision Samples: Clean vs Constant Jammer');
-
-legend( ...
-    'Clean Samples', ...
-    'Jammed Samples', ...
-    'Threshold', ...
-    'Location', 'best');
-
-grid on;
-
-xlim([1 bitsToPlot]);
-
-ylim([-0.03 0.27]);
-
-%% =========================================================
-% TRANSMITTED BITS VS RECEIVER DECISIONS
-%% =========================================================
-
-bitsToPlot = 50;
-
-figure;
-
-stairs(1:bitsToPlot, ...
-    bits(1:bitsToPlot), ...
-    'LineWidth', 2);
-
-hold on;
-
-stairs(1:bitsToPlot, ...
-    detectedBitsClean(1:bitsToPlot), ...
-    '--', ...
-    'LineWidth', 1.5);
-
-stairs(1:bitsToPlot, ...
-    detectedBitsJammed(1:bitsToPlot), ...
-    ':', ...
-    'LineWidth', 1.5);
-
-xlabel('Bit Index');
-
-ylabel('Bit Value');
-
-title('Transmitted Bits vs Detected Bits');
-
-legend( ...
-    'Transmitted Bits', ...
-    'Detected: Clean', ...
-    'Detected: Jammed', ...
-    'Location', 'best');
-
-grid on;
-
-xlim([1 bitsToPlot]);
-
-ylim([-0.2 1.2]);

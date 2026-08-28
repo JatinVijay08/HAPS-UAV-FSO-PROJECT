@@ -3,394 +3,246 @@ clear;
 close all;
 
 %% =========================================================
-%  HAPS FSO COMMUNICATION SYSTEM
-%  Baseline deterministic model
-%  HAPS -> Ground Receiver
-% ==========================================================
-
-%% Parameters
-
-Nbits = 1000;              % Number of transmitted bits
-Rb = 1e6;                % Bit rate (bits/s)
-Pt = 1;                  % Optical transmit power (W)
-
-samplesPerBit = 20;
-Fs = Rb * samplesPerBit;
-
-% Optical / receiver parameters
-lambda = 1550e-9;        % Wavelength (m)
-theta = 0.01e-3;         % Beam divergence half-angle (rad)
-
-RxDiameter = 0.2;        % Receiver aperture diameter (m)
-R = 0.8;                 % Photodetector responsivity (A/W)
-
-% Pointing error
-sigmaPoint = 0.02;       % Pointing displacement standard deviation (m)
-
-% HAPS-ground distance
-L = 20e3;                % 20 km
-
-% Atmospheric attenuation
-alpha = 0.1;             % dB/km
+% HAPS FSO COMMUNICATION SYSTEM
+%
+% NORMAL BASELINE SIMULATION
+%
+% HAPS --> Ground Receiver
+%
+% Includes:
+%   - OOK transmission
+%   - Geometrical propagation
+%   - Atmospheric attenuation
+%   - Pointing error
+%   - Gamma-Gamma turbulence
+%   - Receiver noise
+%   - Receiver saturation
+%   - Direct detection
+%
+% NO JAMMER
+%% =========================================================
 
 
 %% =========================================================
-% 0. TRANSMITTER
-% ==========================================================
+% ADD PATHS
+%% =========================================================
 
-[bits, txSignal, t] = generateOOK( ...
-    Nbits, Pt, Rb, samplesPerBit);
+currentFolder = fileparts(mfilename('fullpath'));
+
+addpath(currentFolder);
+
+addpath(fullfile(currentFolder, 'MainModels'));
 
 
-%% Plot transmitted waveform
+%% =========================================================
+% LOAD DEFAULT PARAMETERS
+%% =========================================================
+
+params = defaultParameters();
+
+
+
+%% =========================================================
+% RUN BASELINE SIMULATION
+%% =========================================================
+
+results = runBaseline(params);
+
+
+%% =========================================================
+% DISPLAY RESULTS
+%% =========================================================
+
+fprintf('\n');
+
+fprintf('============================================\n');
+fprintf('        HAPS FSO NORMAL BASELINE\n');
+fprintf('============================================\n');
+
+
+%% SYSTEM
+
+fprintf('\n----- SYSTEM -----\n');
+
+fprintf('Number of bits        = %d\n', ...
+    params.Nbits);
+
+fprintf('Bit rate              = %.2f Mbps\n', ...
+    params.Rb / 1e6);
+
+fprintf('Transmit power        = %.4f W\n', ...
+    params.Pt);
+
+fprintf('HAPS-Ground distance  = %.2f km\n', ...
+    params.L / 1e3);
+
+
+%% GEOMETRY
+
+fprintf('\n----- GEOMETRY -----\n');
+
+fprintf('Geometrical gain      = %.6f\n', ...
+    results.H_geo);
+
+fprintf('Beam radius at Rx     = %.4f m\n', ...
+    results.wRx);
+
+fprintf('Beam waist            = %.4f m\n', ...
+    results.w0);
+
+fprintf('Rayleigh range        = %.4f km\n', ...
+    results.zR / 1e3);
+
+
+%% ATMOSPHERE
+
+fprintf('\n----- ATMOSPHERE -----\n');
+
+fprintf('Atmospheric gain      = %.6f\n', ...
+    results.H_atm);
+
+fprintf('Deterministic gain    = %.6f\n', ...
+    results.H_total);
+
+
+%% POINTING
+
+fprintf('\n----- POINTING -----\n');
+
+fprintf('Pointing sigma        = %.4f m\n', ...
+    params.sigmaPoint);
+
+fprintf('Mean pointing gain    = %.6f\n', ...
+    mean(results.H_point_bits));
+
+fprintf('Std pointing gain     = %.6f\n', ...
+    std(results.H_point_bits));
+
+
+%% TURBULENCE
+
+fprintf('\n----- TURBULENCE -----\n');
+
+fprintf('Cn^2                  = %.2e m^(-2/3)\n', ...
+    params.Cn2);
+
+fprintf('Rytov variance        = %.6f\n', ...
+    results.sigmaR2);
+
+fprintf('Gamma-Gamma alpha     = %.4f\n', ...
+    results.alphaGG);
+
+fprintf('Gamma-Gamma beta      = %.4f\n', ...
+    results.betaGG);
+
+fprintf('Mean turbulence gain  = %.6f\n', ...
+    mean(results.H_turb_bits));
+
+fprintf('Std turbulence gain   = %.6f\n', ...
+    std(results.H_turb_bits));
+
+
+%% RECEIVER
+
+fprintf('\n----- RECEIVER -----\n');
+
+fprintf('Noise standard deviation = %.6f A\n', ...
+    params.sigmaNoise);
+
+fprintf('Decision threshold       = %.6f A\n', ...
+    results.threshold);
+
+fprintf('Bit errors               = %d\n', ...
+    results.bitErrors);
+
+fprintf('BER                      = %.6f\n', ...
+    results.BER);
+fprintf('Errors (1 -> 0)        = %d\n', ...
+    results.errors10);
+
+fprintf('Errors (0 -> 1)        = %d\n', ...
+    results.errors01);
+
+
+%% =========================================================
+% PLOTS
+%% =========================================================
+
+%% Transmitted OOK signal
 
 figure;
 
-plot(t*1e6, txSignal, 'LineWidth', 1.5);
-
-xlabel('Time (\mus)');
-ylabel('Optical Power (W)');
-title('HAPS Transmitted OOK Optical Signal');
-
-grid on;
-ylim([-0.1 1.1]);
-
-
-%% =========================================================
-% 1. GEOMETRICAL PROPAGATION
-% ==========================================================
-
-[H_geo, wRx, w0, zR] = geometryModel( ...
-    lambda, theta, RxDiameter, L);
-
-%% =========================================================
-% 2. POINTING ERROR
-% ==========================================================
-
-H_point_bits = pointingErrorModel( ...
-    wRx, ...
-    sigmaPoint, ...
-    Nbits);
-
-H_point = repelem( ...
-    H_point_bits, ...
-    samplesPerBit);
-
-fprintf('\n===== POINTING ERROR =====\n');
-
-fprintf('Pointing sigma       = %.4f m\n', sigmaPoint);
-
-fprintf('Mean H_point         = %.4f\n', mean(H_point));
-
-fprintf('Std H_point          = %.4f\n', std(H_point));
-
-fprintf('Minimum H_point      = %.4f\n', min(H_point));
-
-fprintf('Maximum H_point      = %.4f\n', max(H_point));
-
-
-%% =========================================================
-% 3. ATMOSPHERIC ATTENUATION
-% ==========================================================
-
-H_atm = atmosphericAttenuation(alpha, L);
-
-
-%% =========================================================
-% 4. TOTAL DETERMINISTIC CHANNEL
-% ==========================================================
-
-H_total = H_geo * H_atm;
-
-% Apply pointing error
-rxOpticalSignal = H_total .* H_point .* txSignal;
-
-
-%% =========================================================
-% 5. RECEIVER
-% ==========================================================
-
-[detectedBits, BER, rxCurrent, rxSamples, threshold] = ...
-    receiverModel( ...
-    rxOpticalSignal, ...
-    bits, ...
-    Pt, ...
-    H_total, ...
-    R, ...
-    samplesPerBit);
-
-
-%% =========================================================
-% 6. DISPLAY RESULTS
-% ==========================================================
-
-fprintf('\n===== HAPS FSO BASELINE =====\n');
-
-fprintf('HAPS-Ground Distance = %.1f km\n', L/1e3);
-
-fprintf('Geometrical Gain     = %.6f\n', H_geo);
-
-fprintf('Atmospheric Gain     = %.6f\n', H_atm);
-
-fprintf('Total Channel Gain   = %.6f\n', H_total);
-
-fprintf('Beam Radius at Rx    = %.4f m\n', wRx);
-
-fprintf('Beam Waist            = %.4f m\n', w0);
-
-fprintf('Rayleigh Range        = %.4f km\n', zR/1e3);
-
-fprintf('Received Power        = %.6f W\n', Pt*H_total);
-
-fprintf('Decision Threshold    = %.6f A\n', threshold);
-
-fprintf('Number of bit errors  = %d\n', sum(bits ~= detectedBits));
-
-fprintf('BER                   = %.4f\n', BER);
-
-
-%% =========================================================
-% TURBULENCE EXPERIMENT
-% ==========================================================
-
-Cn2 = 1e-15;
-
-Nsamples = 10000;
-
-[H_turb, alphaGG, betaGG, sigmaR2] = ...
-    gammaGammaTurbulence( ...
-    lambda, ...
-    L, ...
-    Cn2, ...
-    Nsamples);
-
-
-%% Turbulence statistics
-
-fprintf('\n===== ATMOSPHERIC TURBULENCE =====\n');
-
-fprintf('Cn^2            = %.2e m^(-2/3)\n', Cn2);
-
-fprintf('Rytov variance  = %.6f\n', sigmaR2);
-
-fprintf('Alpha           = %.4f\n', alphaGG);
-
-fprintf('Beta            = %.4f\n', betaGG);
-
-fprintf('Mean H_turb     = %.4f\n', mean(H_turb));
-
-fprintf('Std H_turb      = %.4f\n', std(H_turb));
-
-
-%% Plot turbulence gain
-
-figure;
-
-plot(H_turb, 'LineWidth', 1);
-
-xlabel('Sample');
-
-ylabel('Turbulence Gain');
-
-title('Gamma-Gamma Atmospheric Turbulence');
-
-grid on;
-
-%% =========================================================
-% TURBULENCE APPLIED TO RECEIVED SIGNAL
-% Block-fading model: one turbulence value per bit
-% ==========================================================
-
-[H_turb_bits, ~, ~, ~] = ...
-    gammaGammaTurbulence( ...
-    lambda, ...
-    L, ...
-    Cn2, ...
-    Nbits);
-
-
-
-% Keep the same turbulence gain throughout each bit
-
-H_turb_signal = repelem( ...
-    H_turb_bits, ...
-    samplesPerBit);
-
-
-% Apply turbulence to received optical signal
-
-rxOpticalSignalTurb = ...
-    H_total .* H_turb_signal .* txSignal;
-%% =========================================================
-% COMPARE RECEIVED SIGNAL WITH AND WITHOUT TURBULENCE
-% ==========================================================
-
-figure;
-
-plot(t*1e6, rxOpticalSignal, ...
+plot(results.t * 1e6, ...
+    results.txSignal, ...
     'LineWidth', 1.5);
 
-hold on;
+xlabel('Time (\mus)');
 
-plot(t*1e6, rxOpticalSignalTurb, ...
+ylabel('Optical Power (W)');
+
+title('Transmitted OOK Optical Signal');
+
+grid on;
+
+
+%% Received optical signal
+
+figure;
+
+plot(results.t * 1e6, ...
+    results.rxOpticalSignal, ...
     'LineWidth', 1.2);
 
 xlabel('Time (\mus)');
+
 ylabel('Received Optical Power (W)');
 
-title('Effect of Atmospheric Turbulence on Received Signal');
-
-legend( ...
-    'Without Turbulence', ...
-    'With Turbulence');
+title('Received Optical Signal - Normal FSO Baseline');
 
 grid on;
 
 %% =========================================================
-% RECEIVER PERFORMANCE UNDER ATMOSPHERIC TURBULENCE
-% ==========================================================
-
-[detectedBitsTurb, BERTurb, rxCurrentTurb, ...
-    rxSamplesTurb, thresholdTurb] = ...
-    receiverModel( ...
-    rxOpticalSignalTurb, ...
-    bits, ...
-    Pt, ...
-    H_total, ...
-    R, ...
-    samplesPerBit);
-
-
-%% Display turbulent-channel BER
-
-fprintf('\n===== FSO WITH ATMOSPHERIC TURBULENCE =====\n');
-
-fprintf('Cn^2                 = %.2e m^(-2/3)\n', Cn2);
-
-fprintf('Rytov variance       = %.6f\n', sigmaR2);
-
-fprintf('Alpha                 = %.4f\n', alphaGG);
-
-fprintf('Beta                  = %.4f\n', betaGG);
-
-fprintf('Decision Threshold    = %.6f A\n', thresholdTurb);
-
-fprintf('Number of bit errors  = %d\n', ...
-    sum(bits ~= detectedBitsTurb));
-
-fprintf('BER                   = %.6f\n', BERTurb);
-
+% RECEIVER DECISION ANALYSIS
 %% =========================================================
-% BER VS ATMOSPHERIC TURBULENCE STRENGTH
-% ==========================================================
-
-% Use more bits for statistical BER estimation
-NbitsSweep = 10000;
-
-% Turbulence strength cases
-Cn2_values = [1e-17 3e-17 1e-16 3e-16 1e-15];
-
-BER_values = zeros(size(Cn2_values));
-Rytov_values = zeros(size(Cn2_values));
-
-
-for k = 1:length(Cn2_values)
-
-    %% Current turbulence condition
-
-    Cn2_current = Cn2_values(k);
-
-
-    %% Generate a new OOK sequence for this experiment
-
-    [bitsSweep, txSignalSweep, ~] = ...
-        generateOOK( ...
-        NbitsSweep, ...
-        Pt, ...
-        Rb, ...
-        samplesPerBit);
-
-
-    %% Generate turbulence gain: one value per bit
-
-    [H_turb_bits, ~, ~, sigmaR2_current] = ...
-        gammaGammaTurbulence( ...
-        lambda, ...
-        L, ...
-        Cn2_current, ...
-        NbitsSweep);
-
-    %% Generate pointing error for each bit
-
-    H_point_bits = pointingErrorModel( ...
-        wRx, ...
-        sigmaPoint, ...
-        NbitsSweep);
-
-    H_point_signal = repelem( ...
-        H_point_bits, ...
-        samplesPerBit);
-
-
-    %% Expand one turbulence value across each bit
-
-    H_turb_signal = repelem( ...
-        H_turb_bits, ...
-        samplesPerBit);
-
-
-    %% Apply turbulence to received signal
-
-    rxOpticalSignalSweep = ...
-        H_total .* ...
-        H_turb_signal .* ...
-        H_point_signal .* ...
-        txSignalSweep;
-
-
-    %% Receiver detection
-
-    [detectedBitsSweep, BER_current, ~, ~, ~] = ...
-        receiverModel( ...
-        rxOpticalSignalSweep, ...
-        bitsSweep, ...
-        Pt, ...
-        H_total, ...
-        R, ...
-        samplesPerBit);
-
-
-    %% Store results
-
-    BER_values(k) = BER_current;
-
-    Rytov_values(k) = sigmaR2_current;
-
-
-    %% Display current result
-
-    fprintf('\nCn^2 = %.2e\n', Cn2_current);
-
-    fprintf('Rytov variance = %.4f\n', sigmaR2_current);
-
-    fprintf('BER = %.6f\n', BER_current);
-
-end
-
-%% Plot BER versus turbulence strength
 
 figure;
 
-loglog( ...
-    Cn2_values, ...
-    BER_values, ...
-    'o-', ...
-    'LineWidth', 1.5);
+% Bit 0 received samples
 
-xlabel('Refractive Index Structure Parameter C_n^2 (m^{-2/3})');
+histogram( ...
+    results.rxSamplesBit0, ...
+    40, ...
+    'Normalization', 'probability');
 
-ylabel('BER');
+hold on;
 
-title('FSO BER versus Atmospheric Turbulence Strength');
+
+% Bit 1 received samples
+
+histogram( ...
+    results.rxSamplesBit1, ...
+    40, ...
+    'Normalization', 'probability');
+
+
+% Decision threshold
+
+xline( ...
+    results.threshold, ...
+    '--', ...
+    'Decision Threshold', ...
+    'LineWidth', 2);
+
+
+xlabel('Sampled Photodetector Current (A)');
+
+ylabel('Probability');
+
+title('Receiver Decision Statistics: Bit 0 vs Bit 1');
+
+legend( ...
+    'Transmitted Bit 0', ...
+    'Transmitted Bit 1', ...
+    'Decision Threshold');
 
 grid on;

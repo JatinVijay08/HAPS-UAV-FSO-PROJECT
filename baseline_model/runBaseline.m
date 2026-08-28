@@ -1,0 +1,227 @@
+function results = runBaseline(params)
+
+%% =========================================================
+% HAPS FSO BASELINE SIMULATION ENGINE
+%
+% Includes:
+%   1. OOK transmitter
+%   2. Geometrical propagation
+%   3. Atmospheric attenuation
+%   4. Pointing error
+%   5. Gamma-Gamma turbulence
+%   6. Receiver noise
+%   7. Receiver saturation
+%   8. Direct detection
+%
+% NO JAMMER INCLUDED
+%% =========================================================
+
+
+%% =========================================================
+% RANDOM SEED
+%% =========================================================
+
+rng(params.rngSeed);
+
+
+%% =========================================================
+% TRANSMITTER
+%% =========================================================
+
+[bits, txSignal, t] = generateOOK( ...
+    params.Nbits, ...
+    params.Pt, ...
+    params.Rb, ...
+    params.samplesPerBit);
+
+
+%% =========================================================
+% GEOMETRICAL PROPAGATION
+%% =========================================================
+
+[H_geo, wRx, w0, zR] = geometryModel( ...
+    params.lambda, ...
+    params.theta, ...
+    params.RxDiameter, ...
+    params.L);
+
+
+%% =========================================================
+% ATMOSPHERIC ATTENUATION
+%% =========================================================
+
+H_atm = atmosphericAttenuation( ...
+    params.alpha, ...
+    params.L);
+
+
+%% =========================================================
+% DETERMINISTIC CHANNEL GAIN
+%% =========================================================
+
+H_total = H_geo * H_atm;
+
+
+%% =========================================================
+% POINTING ERROR
+%% =========================================================
+
+H_point_bits = pointingErrorModel( ...
+    wRx, ...
+    params.sigmaPoint, ...
+    params.Nbits);
+
+
+H_point_signal = repelem( ...
+    H_point_bits, ...
+    params.samplesPerBit);
+
+
+%% =========================================================
+% ATMOSPHERIC TURBULENCE
+%% =========================================================
+
+[H_turb_bits, alphaGG, betaGG, sigmaR2] = ...
+    gammaGammaTurbulence( ...
+        params.lambda, ...
+        params.L, ...
+        params.Cn2, ...
+        params.Nbits);
+
+
+H_turb_signal = repelem( ...
+    H_turb_bits, ...
+    params.samplesPerBit);
+
+
+%% =========================================================
+% APPLY FSO CHANNEL
+%
+% P_rx(t) =
+%
+% P_tx(t)
+% × H_geo
+% × H_atm
+% × H_point
+% × H_turb
+%% =========================================================
+
+rxOpticalSignal = ...
+    H_total .* ...
+    H_point_signal .* ...
+    H_turb_signal .* ...
+    txSignal;
+
+
+%% =========================================================
+% RECEIVER
+%% =========================================================
+
+[detectedBits, BER, ...
+    rxCurrent, ...
+    rxSamples, ...
+    threshold] = receiverModel( ...
+    rxOpticalSignal, ...
+    bits, ...
+    params.Pt, ...
+    H_total, ...
+    params.R, ...
+    params.samplesPerBit, ...
+    params.sigmaNoise, ...
+    params.enableSaturation);
+
+%% =========================================================
+% STORE RESULTS
+%% =========================================================
+
+% Signals
+
+results.bits = bits;
+
+results.detectedBits = detectedBits;
+
+results.txSignal = txSignal;
+
+results.rxOpticalSignal = rxOpticalSignal;
+
+results.rxCurrent = rxCurrent;
+
+results.rxSamples = rxSamples;
+
+% Receiver diagnostic statistics
+
+results.rxSamplesBit0 = ...
+    rxSamples(bits == 0);
+
+results.rxSamplesBit1 = ...
+    rxSamples(bits == 1);
+
+results.meanBit0 = ...
+    mean(results.rxSamplesBit0);
+
+results.meanBit1 = ...
+    mean(results.rxSamplesBit1);
+
+results.stdBit0 = ...
+    std(results.rxSamplesBit0);
+
+results.stdBit1 = ...
+    std(results.rxSamplesBit1);
+
+results.t = t;
+
+
+% Performance
+
+results.BER = BER;
+
+results.threshold = threshold;
+
+results.bitErrors = sum(bits ~= detectedBits);
+%% =========================================================
+% ERROR TYPE ANALYSIS
+%% =========================================================
+
+% Transmitted 1 detected as 0
+
+results.errors10 = sum( ...
+    (bits == 1) & (detectedBits == 0));
+
+
+% Transmitted 0 detected as 1
+
+results.errors01 = sum( ...
+    (bits == 0) & (detectedBits == 1));
+
+
+% Channel gains
+
+results.H_geo = H_geo;
+
+results.H_atm = H_atm;
+
+results.H_total = H_total;
+
+results.H_point_bits = H_point_bits;
+
+results.H_turb_bits = H_turb_bits;
+
+
+% Geometry
+
+results.wRx = wRx;
+
+results.w0 = w0;
+
+results.zR = zR;
+
+
+% Turbulence
+
+results.alphaGG = alphaGG;
+
+results.betaGG = betaGG;
+
+results.sigmaR2 = sigmaR2;
+
+end
