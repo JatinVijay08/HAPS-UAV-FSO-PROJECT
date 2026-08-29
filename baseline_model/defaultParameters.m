@@ -55,7 +55,7 @@ params.Cn2 = 1e-16;           % Refractive index structure parameter
 % JAMMER PARAMETERS
 %% =========================================================
 
-params.enableJammer = false;
+params.enableJammer = true;
 
 params.jammerPower = 0.1;   % W
 

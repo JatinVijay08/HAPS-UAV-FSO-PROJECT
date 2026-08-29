@@ -6,7 +6,7 @@ function [detectedBits, BER, rxCurrent, rxSamples, threshold] = ...
     H_total, ...
     R, ...
     samplesPerBit, ...
-    sigmaNoise, ...
+    receiverNoise, ...
     enableSaturation)
 
 %% =========================================================
@@ -26,23 +26,22 @@ function [detectedBits, BER, rxCurrent, rxSamples, threshold] = ...
 %% =========================================================
 % 1. PHOTODETECTION
 %
-% Optical power → Electrical current
+% Optical Power -> Electrical Current
 %
-% I(t) = R × P_rx(t)
+% I(t) = R * P_rx(t)
 %% =========================================================
 
 rxCurrent = R * rxOpticalSignal;
 
 
 %% =========================================================
-% 2. RECEIVER NOISE
+% 2. ADD RECEIVER NOISE
 %
-% Additive Gaussian electrical noise
+% Noise is generated externally so experiments can use
+% the exact same noise realization for fair comparisons.
 %% =========================================================
 
-noise = sigmaNoise * randn(size(rxCurrent));
-
-rxCurrent = rxCurrent + noise;
+rxCurrent = rxCurrent + receiverNoise;
 
 
 %% =========================================================
@@ -51,7 +50,7 @@ rxCurrent = rxCurrent + noise;
 
 if enableSaturation
 
-    I_sat = 0.25;   % Saturation current (A)
+    I_sat = 0.25;
 
     rxCurrent = min(rxCurrent, I_sat);
 
