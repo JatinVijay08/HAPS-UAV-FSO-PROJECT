@@ -52,6 +52,14 @@ params.sigmaPoint = 0.02;     % Pointing displacement std (m)
 params.Cn2 = 1e-16;           % Refractive index structure parameter
 
 %% =========================================================
+% JAMMER PARAMETERS
+%% =========================================================
+
+params.enableJammer = false;
+
+params.jammerPower = 0.1;   % W
+
+%% =========================================================
 % RECEIVER PARAMETERS
 %% =========================================================
 
