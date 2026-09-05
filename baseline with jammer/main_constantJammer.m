@@ -1,0 +1,332 @@
+clc;
+clear;
+close all;
+
+rng(1);
+
+%% =========================================================
+% HAPS FSO COMMUNICATION SYSTEM
+%
+% CLEAN BASELINE MODEL
+% HAPS --> Ground Receiver
+%
+% Includes:
+%   1. OOK transmitter
+%   2. Geometrical propagation
+%   3. Atmospheric attenuation
+%   4. Pointing error
+%   5. Receiver noise and saturation
+%   6. Direct detection
+%
+% Turbulence sweeps and other experiments are kept separate.
+%% =========================================================
+
+
+%% =========================================================
+% ADD MAIN MODELS TO MATLAB PATH
+%% =========================================================
+
+currentFolder = fileparts(mfilename('fullpath'));
+
+addpath(fullfile(currentFolder, 'MainModels'));
+
+
+%% =========================================================
+% 1. SYSTEM PARAMETERS
+%% =========================================================
+
+% Communication parameters
+
+Nbits = 1000;
+
+Rb = 1e6;                      % Bit rate (bits/s)
+
+Pt = 1;                        % Optical transmit power (W)
+
+
+% Sampling parameters
+
+samplesPerBit = 20;
+
+Fs = Rb * samplesPerBit;
+
+
+% Optical parameters
+
+lambda = 1550e-9;              % Wavelength (m)
+
+theta = 0.01e-3;               % Beam divergence half-angle (rad)
+
+
+% Receiver parameters
+
+RxDiameter = 0.2;              % Receiver aperture diameter (m)
+
+R = 0.8;                       % Photodetector responsivity (A/W)
+
+
+% HAPS-ground distance
+
+L = 20e3;                      % 20 km
+
+
+% Atmospheric attenuation
+
+alpha = 0.1;                   % dB/km
+
+
+% Pointing error
+
+sigmaPoint = 0.02;             % Pointing displacement std (m)
+
+% Atmospheric turbulence
+
+Cn2 = 1e-16;                   % Refractive index structure parameter
+
+% Constant Jammer
+Pj = 0.1 ; %Constant jammer optical power arriving at receiver (W)
+
+
+%% =========================================================
+% 2. TRANSMITTER
+%% =========================================================
+
+[bits, txSignal, t] = generateOOK( ...
+    Nbits, ...
+    Pt, ...
+    Rb, ...
+    samplesPerBit);
+
+
+%% =========================================================
+% 3. GEOMETRICAL PROPAGATION
+%% =========================================================
+
+[H_geo, wRx, w0, zR] = geometryModel( ...
+    lambda, ...
+    theta, ...
+    RxDiameter, ...
+    L);
+
+
+%% =========================================================
+% 4. ATMOSPHERIC ATTENUATION
+%% =========================================================
+
+H_atm = atmosphericAttenuation( ...
+    alpha, ...
+    L);
+
+
+%% =========================================================
+% 5. DETERMINISTIC CHANNEL GAIN
+%% =========================================================
+
+H_total = H_geo * H_atm;
+
+
+%% =========================================================
+% 6. POINTING ERROR
+%
+% One pointing realization per transmitted bit
+%% =========================================================
+
+H_point_bits = pointingErrorModel( ...
+    wRx, ...
+    sigmaPoint, ...
+    Nbits);
+
+
+% Expand each bit gain across its samples
+
+H_point_signal = repelem( ...
+    H_point_bits, ...
+    samplesPerBit);
+%% =========================================================
+% 7. ATMOSPHERIC TURBULENCE
+%
+% One turbulence realization per transmitted bit
+%% =========================================================
+
+[H_turb_bits, alphaGG, betaGG, sigmaR2] = gammaGammaTurbulence(lambda, L,Cn2,Nbits);
+
+% Expand each bit gain across its samples
+
+H_turb_signal = repelem(H_turb_bits,samplesPerBit);
+
+
+%% =========================================================
+% 7. APPLY CHANNEL
+%
+% P_rx(t) =
+%
+% P_tx(t)
+%
+% × H_geo
+%
+% × H_atm
+%
+% × H_point(bit)
+%
+% × H_turb(bit)
+%% =========================================================
+
+rxOpticalSignal = ...
+    H_total .* ...
+    H_point_signal .* ...
+    H_turb_signal.*...
+    txSignal;
+%% =========================================================
+% CONSTANT OPTICAL JAMMER
+%% =========================================================
+
+% Number of optical samples
+
+Nsamples = length(rxOpticalSignal);
+
+% Generate constant jammer optical power
+
+P_jammer = jammerModel(Pj,Nsamples);
+
+% Add jammer optical power at receiver
+
+rxOpticalSignalJammed = rxOpticalSignal + P_jammer;
+
+%% =========================================================
+% 8. RECEIVER - WITHOUT JAMMER
+%% =========================================================
+
+[detectedBits, BER, ...
+ rxCurrent, ...
+ rxSamples, ...
+ threshold] = receiverModel( ...
+    rxOpticalSignal, ...
+    bits, ...
+    Pt, ...
+    H_total, ...
+    R, ...
+    samplesPerBit);
+%% =========================================================
+% 8.1 RECEIVER - WITH CONSTANT JAMMER
+%% =========================================================
+
+[detectedBitsJammed, BERJammed, ...
+rxCurrentJammed, ...
+rxSamplesJammed, ...
+thresholdJammed] = receiverModel( ...
+rxOpticalSignalJammed, ...
+bits, ...
+Pt, ...
+H_total, ...
+R, ...
+samplesPerBit);
+
+
+%% =========================================================
+% 9. DISPLAY RESULTS
+%% =========================================================
+
+fprintf('\n');
+fprintf('============================================\n');
+fprintf('         HAPS FSO CLEAN BASELINE\n');
+fprintf('============================================\n');
+
+
+fprintf('\n----- SYSTEM -----\n');
+
+fprintf('Number of bits        = %d\n', Nbits);
+
+fprintf('Bit rate              = %.2f Mbps\n', Rb/1e6);
+
+fprintf('Transmit power        = %.4f W\n', Pt);
+
+fprintf('HAPS-Ground distance  = %.2f km\n', L/1e3);
+
+
+fprintf('\n----- GEOMETRY -----\n');
+
+fprintf('Geometrical gain      = %.6f\n', H_geo);
+
+fprintf('Beam radius at Rx     = %.4f m\n', wRx);
+
+fprintf('Beam waist            = %.4f m\n', w0);
+
+fprintf('Rayleigh range        = %.4f km\n', zR/1e3);
+
+
+fprintf('\n----- ATMOSPHERE -----\n');
+
+fprintf('Atmospheric gain      = %.6f\n', H_atm);
+
+fprintf('Deterministic gain    = %.6f\n', H_total);
+
+
+fprintf('\n----- POINTING -----\n');
+
+fprintf('Pointing sigma        = %.4f m\n', sigmaPoint);
+
+fprintf('Mean pointing gain    = %.6f\n', ...
+    mean(H_point_bits));
+
+fprintf('Std pointing gain     = %.6f\n', ...
+    std(H_point_bits));
+
+fprintf('\n----- TURBULENCE -----\n');
+
+fprintf('Cn^2                  = %.2e m^(-2/3)\n', Cn2);
+
+fprintf('Rytov variance        = %.6f\n',sigmaR2);
+
+fprintf('Gamma-Gamma alpha     = %.4f\n',alphaGG);
+
+fprintf('Gamma-Gamma beta      = %.4f\n', betaGG);
+
+fprintf('Mean turbulence gain  = %.6f\n', mean(H_turb_bits));
+
+fprintf('Std turbulence gain   = %.6f\n', std(H_turb_bits));
+
+fprintf('\n----- RECEIVER -----\n');
+
+fprintf('Nominal received power = %.6f W\n', ...
+    Pt * H_total);
+
+fprintf('Decision threshold     = %.6f A\n', ...
+    threshold);
+
+fprintf('Bit errors             = %d\n', ...
+    sum(bits ~= detectedBits));
+
+fprintf('BER                    = %.6f\n', ...
+    BER);
+
+
+%% =========================================================
+% 10. PLOTS
+%% =========================================================
+
+figure;
+
+plot(t*1e6, txSignal, ...
+    'LineWidth', 1.5);
+
+xlabel('Time (\mus)');
+
+ylabel('Optical Power (W)');
+
+title('Transmitted OOK Optical Signal');
+
+grid on;
+
+
+figure;
+
+plot(t*1e6, rxOpticalSignal, ...
+    'LineWidth', 1.2);
+
+xlabel('Time (\mus)');
+
+ylabel('Received Optical Power (W)');
+
+title('Received Optical Signal - Clean Baseline');
+
+grid on;
